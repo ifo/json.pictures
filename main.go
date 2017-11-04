@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -32,21 +33,25 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		returnJSON(w, r)
 	} else if r.Method == http.MethodPost {
-		// TODO: check the body size and error on sizes above some limit (10k? 100k?)
 		setJSON(w, r)
 	}
 }
 
-// Post requests come here
 func setJSON(w http.ResponseWriter, r *http.Request) {
+	// For now, ensure that the request wasn't larger than 2048 bytes.
+	if r.ContentLength == -1 || r.ContentLength > 2048 {
+		http.Error(w,
+			fmt.Sprintf("Content length is %d, but must be smaller than 2048 bytes", r.ContentLength), 400)
+		return
+	}
+
 	bts, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "", 500)
 		return
 	}
 
-	// Validate JSON
-	// In order to be indented, JSON must be valid.
+	// JSON must be valid in order to be indented.
 	// TODO: Find a better way to validate the JSON.
 	var ignore bytes.Buffer
 	err = json.Indent(&ignore, bts, "", "")
@@ -55,11 +60,9 @@ func setJSON(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Save it
 	PathResponseCache[r.URL.Path] = JSONResponse{JSON: bts}
 }
 
-// Get requests come here
 func returnJSON(w http.ResponseWriter, r *http.Request) {
 	jsonResp, ok := PathResponseCache[r.URL.Path]
 	if !ok {
